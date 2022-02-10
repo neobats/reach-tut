@@ -5,7 +5,7 @@ This is me running through the [reach tutorial](https://docs.reach.sh/tut/rps/) 
 If you want to read my thoughts as I'm going through it, check out the source
 and you can read a collection of thoughts here:
 
-[./thoughts.md](Thoughts)
+[Thoughts](./thoughts.md)
 
 ## Notes
 
