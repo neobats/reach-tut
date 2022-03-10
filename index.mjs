@@ -7,6 +7,13 @@ const stdlib = loadStdlib(process.env);
   const accAlice = await stdlib.newTestAccount(startingBalance);
   const accBob = await stdlib.newTestAccount(startingBalance);
 
+  // format some currency up to 4 decimal places
+  const format = (monies) => stdlib.formatCurrency(monies, 4);
+  // get a participant's balance and display it up to 4 decimal places
+  const getBalance = async (who) => format(await stdlib.balanceOf(who));
+  const beforeAlice = await getBalance(accAlice);
+  const beforeBob = await getBalance(accBob);
+
   const ctcAlice = accAlice.contract(backend);
   const ctcBob = accBob.contract(backend, ctcAlice.getInfo());
 
@@ -26,9 +33,18 @@ const stdlib = loadStdlib(process.env);
   await Promise.all([
     ctcAlice.p.Alice({
       ...Player("Alice"),
+      wager: stdlib.parseCurrency(5),
     }),
     ctcBob.p.Bob({
       ...Player("Bob"),
+      acceptWager: (amount) =>
+        console.log(`Bob accepts the wager of ${format(amount)}`),
     }),
   ]);
+
+  const afterAlice = await getBalance(accAlice);
+  const afterBob = await getBalance(accBob);
+
+  console.log(`Alice went from ${beforeAlice} to ${afterAlice}.`);
+  console.log(`Bob went from ${beforeBob} to ${afterBob}.`);
 })(); // <-- Don't forget these!

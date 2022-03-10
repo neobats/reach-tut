@@ -16,3 +16,9 @@ Bob.publish(handBob);
 // available outside scope
 const outcome = (handAlice + (4 - handBob)) % 3;
 ```
+
+## TypeScript
+
+I haven't used it yet, but apparently one can use the `@reach-sh/stdlib` in TypeScript.
+That sounds appealing, especially given that in `rsh` files, one creates
+types/interfaces regularly.
