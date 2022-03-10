@@ -28,8 +28,6 @@ export const main = Reach.App(() => {
   Alice.publish(wager, handAlice).pay(wager);
   commit();
 
-  // // assertion that saying that Bob cannot know Alice's hand at this point in the program. This fails, because Alice's handValue is published just above
-  // unknowable(Bob, Alice(handAlice));
   Bob.only(() => {
     interact.acceptWager(wager);
     // declassify makes the information public. So, the hand is now
