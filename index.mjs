@@ -33,7 +33,7 @@ const stdlib = loadStdlib(process.env);
   await Promise.all([
     ctcAlice.p.Alice({
       ...Player("Alice"),
-      wager: stdlib.parseCurrency(5),
+      wager: stdlib.parseCurrency(5), // this sets the wager, but it could be pulled from the front end into here.
     }),
     ctcBob.p.Bob({
       ...Player("Bob"),
