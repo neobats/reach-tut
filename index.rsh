@@ -1,9 +1,45 @@
 "reach 0.1";
+// ^ usual reach header
 
-// same thing as type Player = { ... } in TypeScript... and then creating one
+// the hands playable
+const [isHand, ROCK, PAPER, SCISSORS] = makeEnum(3);
+// the possible outcomes
+const [isOutcome, B_WINS, DRAW, A_WINS] = makeEnum(3);
+
+const determineWinner = (handAlice, handBob) => (handAlice + (4 - handBob)) % 3; // fancy maths
+//assertions that the outcomes we expect to be true are actually true
+assert(determineWinner(ROCK, PAPER) == B_WINS);
+assert(determineWinner(PAPER, ROCK) == A_WINS);
+assert(determineWinner(ROCK, ROCK) == DRAW);
+
+// an even more powerful assertion...
+forall(UInt, (handAlice) =>
+  forall(UInt, (handBob) =>
+    assert(isOutcome(determineWinner(handAlice, handBob)))
+  )
+);
+forall(UInt, (hand) => assert(determineWinner(hand, hand) == DRAW));
+// an awesome quote from the docs:
+/*
+These examples both use forall, which allows Reach programmers to
+quantify over all possible values that might be provided to a part
+of their program. You might think that these theorems will take a
+very long time to prove, because they have to loop over all the 
+billions and billions of possibilities (e.g., Ethereum uses 256-bits
+for its unsigned integers) for the bits of handAlice (twice!) and handBob.
+In fact, on rudimentary laptops, it takes less than half a second.
+That's because Reach uses an advanced symbolic execution engine to
+reason about this theorem abstractly without considering individual values.
+*/
+
+// define the interface
 const Player = {
+  // allow each frontend to provide access to random numbers
+  ...hasRandom, // new!
+  // we use that ^ to protect Alice's hand
   getHand: Fun([], UInt),
   seeOutcome: Fun([UInt], Null),
+  // informTimeout: Fun([], Null),
 };
 
 export const main = Reach.App(() => {
@@ -17,40 +53,43 @@ export const main = Reach.App(() => {
   });
   init();
 
-  // only means only this participant does the thing in this transaction.
   Alice.only(() => {
-    // interact is this object/interface.
     const wager = declassify(interact.wager);
-    const handAlice = declassify(interact.getHand());
+    const _handAlice = interact.getHand();
+    const [_commitAlice, _saltAlice] = makeCommitment(interact, _handAlice);
+    const commitAlice = declassify(_commitAlice); // well this is a rather OOP way to do it...
   });
-  // somehow..? this handAlice value is known for publication.
-  // I guess what things you publish is what makes them available for use outside the participant's actions.
-  Alice.publish(wager, handAlice).pay(wager);
+  Alice.publish(wager, commitAlice).pay(wager);
   commit();
 
+  // assert that Bob cannot know Alice's hand or salt
+  unknowable(Bob, Alice(_handAlice, _saltAlice));
   Bob.only(() => {
     interact.acceptWager(wager);
-    // declassify makes the information public. So, the hand is now
-    // "declassified" and no longer secret
     const handBob = declassify(interact.getHand());
   });
-  // Bob joins Alice in the application by publishing the value,
-  // in this case the hand, to the network.
   Bob.publish(handBob).pay(wager);
-
-  const outcome = (handAlice + (4 - handBob)) % 3;
-  const [forAlice, forBob] =
-    outcome == 2 ? [2, 0] : outcome == 0 ? [0, 2] : /* tie */ [1, 1];
-
-  transfer(forAlice * wager).to(Alice);
-  transfer(forBob * wager).to(Bob);
-  // commit to the consensus network. The thing is now on chain.
   commit();
 
-  // enumerate different participants in the transaction
-  // to do some thing
+  Alice.only(() => {
+    const saltAlice = declassify(_saltAlice);
+    const handAlice = declassify(_handAlice);
+  });
+  Alice.publish(saltAlice, handAlice);
+  checkCommitment(commitAlice, saltAlice, handAlice);
+
+  const outcome = determineWinner(handAlice, handBob);
+  const [forAlice, forBob] =
+    outcome == A_WINS
+      ? [2, 0]
+      : outcome == B_WINS
+      ? [0, 2]
+      : /* tie           */ [1, 1];
+  transfer(forAlice * wager).to(Alice);
+  transfer(forBob * wager).to(Bob);
+  commit();
+
   each([Alice, Bob], () => {
-    // okay, this scoping actually makes sense...
     interact.seeOutcome(outcome);
   });
 });
