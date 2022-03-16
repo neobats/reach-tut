@@ -29,17 +29,31 @@ const stdlib = loadStdlib(process.env);
     seeOutcome: (outcome) => {
       console.log(`${Who} saw outcome ${OUTCOME[outcome]}`);
     },
+    informTimeout: () => {
+      console.log(`${Who} observed a timeout.`);
+    },
   });
 
   await Promise.all([
     ctcAlice.p.Alice({
       ...Player("Alice"),
       wager: stdlib.parseCurrency(5), // this sets the wager, but it could be pulled from the front end into here.
+      deadline: 10, // sets the deadline to 10 blocks. Could be pulled from the front end.
     }),
     ctcBob.p.Bob({
       ...Player("Bob"),
-      acceptWager: (amount) =>
-        console.log(`Bob accepts the wager of ${format(amount)}`),
+      // turning Bob's acceptWager into an async function due to the wait
+      acceptWager: async (amount) => {
+        // this if condition is simulating Bob not participating.
+        if (Math.random() <= 0.5) {
+          for (let i = 0; i < 10; i++) {
+            console.log(`*** Bob takes his sweet time...`);
+            await stdlib.wait(1); // why we made this async
+          }
+        } else {
+          console.log(`Bob accepts the wager of ${format(amount)}`);
+        }
+      },
     }),
   ]);
 
