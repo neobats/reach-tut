@@ -59,24 +59,33 @@ export const main = Reach.App(() => {
       interact.informTimeout();
     });
   };
+
+  // The actions
+
+  /*
+  Used to be that we had Alice send the wager and commitment, choosing her hand
+  Then Bob accepts the wager and sends his hand
+  Alice reveals her hand
+  game ends
+
+
+  But if we want to disallow draws that can't work.
+  So instead, we first handle the wager,
+  Alice sends the hand and commitment, then Bob sends his hand
+  Alice reveals her hand,
+  If it's a draw, we go back to redoing the hand; otherwise the game ends.
+  */
   Alice.only(() => {
     const wager = declassify(interact.wager);
-    const _handAlice = interact.getHand();
-    const [_commitAlice, _saltAlice] = makeCommitment(interact, _handAlice);
-    const commitAlice = declassify(_commitAlice); // well this is a rather OOP way to do it...
     const deadline = declassify(interact.deadline); // instantiating the deadline thing
   });
-  Alice.publish(wager, commitAlice, deadline).pay(wager); // have to add deadline to the things published
+  Alice.publish(wager, deadline).pay(wager); // have to add deadline to the things published
   commit();
 
-  // assert that Bob cannot know Alice's hand or salt
-  unknowable(Bob, Alice(_handAlice, _saltAlice));
   Bob.only(() => {
     interact.acceptWager(wager);
-    const handBob = declassify(interact.getHand());
   });
-  Bob.publish(handBob)
-    .pay(wager)
+  Bob.pay(wager)
     // specifies that if Bob does not complete the pay() within a time delta of deadline, then the app
     // moves to the step given by the second argument; in this case closeTo(),
     // closeTo is a standard lib function that allows anyone to send a message and transfer all of the funds
@@ -84,27 +93,53 @@ export const main = Reach.App(() => {
     // second arg... In the case of non-participation, this also means that if Bob fails to publish
     // his hand, Alice will take all her network tokens back.
     .timeout(relativeTime(deadline), () => closeTo(Alice, informTimeout));
-  commit();
+  // moving commit to inside loop body
 
-  Alice.only(() => {
-    const saltAlice = declassify(_saltAlice);
-    const handAlice = declassify(_handAlice);
-  });
-  Alice.publish(saltAlice, handAlice)
-    // do the same thing, but for Bob.
-    // The main difference here is that Alice is punished for non-participation in the case
-    // of knowing that she will lose. Because of the way time works in publication,
-    // Alice may know both hands but refuse to finish the contract because she
-    // knows she will lose. To diminish the chance of this happening,
-    // we give EVERYTHING to Bob if Alice chooses not to participate at this point.
-    .timeout(relativeTime(deadline), () => closeTo(Bob, informTimeout));
-  checkCommitment(commitAlice, saltAlice, handAlice);
+  // loopedy do
+  var outcome = DRAW;
+  invariant(balance() == 2 * wager && isOutcome(outcome));
+  while (outcome == DRAW) {
+    commit(); // here's where that commit moved to
 
-  const outcome = determineWinner(handAlice, handBob);
-  const [forAlice, forBob] =
-    outcome == A_WINS ? [2, 0] : outcome == B_WINS ? [0, 2] : /* tie */ [1, 1];
-  transfer(forAlice * wager).to(Alice);
-  transfer(forBob * wager).to(Bob);
+    Alice.only(() => {
+      const _handAlice = interact.getHand();
+      const [_commitAlice, _saltAlice] = makeCommitment(interact, _handAlice);
+      const commitAlice = declassify(_commitAlice); // well this is a rather OOP way to do it...
+    });
+    Alice.publish(commitAlice).timeout(relativeTime(deadline), () =>
+      closeTo(Bob, informTimeout)
+    );
+    commit();
+
+    // assert that Bob cannot know Alice's hand or salt
+    unknowable(Bob, Alice(_handAlice, _saltAlice));
+    Bob.only(() => {
+      const handBob = declassify(interact.getHand());
+    });
+    Bob.publish(handBob).timeout(relativeTime(deadline), () =>
+      closeTo(Alice, informTimeout)
+    );
+    commit();
+
+    Alice.only(() => {
+      const saltAlice = declassify(_saltAlice);
+      const handAlice = declassify(_handAlice);
+    });
+    Alice.publish(saltAlice, handAlice)
+      // do the same thing, but for Bob.
+      // The main difference here is that Alice is punished for non-participation in the case
+      // of knowing that she will lose. Because of the way time works in publication,
+      // Alice may know both hands but refuse to finish the contract because she
+      // knows she will lose. To diminish the chance of this happening,
+      // we give EVERYTHING to Bob if Alice chooses not to participate at this point.
+      .timeout(relativeTime(deadline), () => closeTo(Bob, informTimeout));
+    checkCommitment(commitAlice, saltAlice, handAlice);
+
+    outcome = determineWinner(handAlice, handBob);
+    continue;
+  }
+  assert(outcome == A_WINS || outcome == B_WINS);
+  transfer(2 * wager).to(outcome == A_WINS ? Alice : Bob);
   commit();
 
   each([Alice, Bob], () => {

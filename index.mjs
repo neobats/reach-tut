@@ -21,9 +21,15 @@ const stdlib = loadStdlib(process.env);
   const OUTCOME = ["Bob wins", "Draw", "Alice wins"];
   const Player = (Who) => ({
     ...stdlib.hasRandom, // New! allows each participant's Reach code to generate random numbers as necessary.
-    getHand: () => {
+    getHand: async () => {
       const hand = Math.floor(Math.random() * 3);
       console.log(`${Who} played ${HAND[hand]}`);
+      if (Math.random() <= 0.01) {
+        for (let i = 0; i < 10; i++) {
+          console.log(`*** ${Who} takes their sweet time sending it back...`);
+          await stdlib.wait(1); // why we made this async
+        }
+      }
       return hand;
     },
     seeOutcome: (outcome) => {
@@ -43,17 +49,8 @@ const stdlib = loadStdlib(process.env);
     ctcBob.p.Bob({
       ...Player("Bob"),
       // turning Bob's acceptWager into an async function due to the wait
-      acceptWager: async (amount) => {
-        // this if condition is simulating Bob not participating.
-        if (Math.random() <= 0.5) {
-          for (let i = 0; i < 10; i++) {
-            console.log(`*** Bob takes his sweet time...`);
-            await stdlib.wait(1); // why we made this async
-          }
-        } else {
-          console.log(`Bob accepts the wager of ${format(amount)}`);
-        }
-      },
+      acceptWager: (amount) =>
+        console.log(`Bob accepts the wager of ${format(amount)}`),
     }),
   ]);
 
